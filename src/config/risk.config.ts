@@ -1,0 +1,9 @@
+export interface RiskConfig {
+  DAILY_LOSS_LIMIT_USD: number;
+  MAX_SLIPPAGE_PERCENT: number;
+  MIN_LIQUIDITY_MULTIPLIER: number;
+  AUTO_PAUSE_WIN_RATE_THRESHOLD: number;
+  AUTO_PAUSE_LOOKBACK_TRADES: number;
+  MIN_MATIC_BALANCE: number;
+  TELEGRAM_NOTIFICATIONS: boolean;
+}
