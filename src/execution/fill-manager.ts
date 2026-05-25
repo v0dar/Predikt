@@ -10,15 +10,17 @@ import type { Trade } from '../db/types.js';
 // Called by the reconciliation cron — not invoked directly by the execution engine.
 
 class FillManager {
-  async checkAllOpenFills(): Promise<void> {
+  async checkAllOpenFills(): Promise<{ processed: number; updated: number }> {
     const openTrades = await getOpenTrades();
     const liveOrders = openTrades.filter((t) => t.mode === 'live' && t.order_id);
 
-    if (liveOrders.length === 0) return;
+    if (liveOrders.length === 0) return { processed: 0, updated: 0 };
 
     logger.debug(`Fill manager checking ${liveOrders.length} open orders`);
 
-    await Promise.allSettled(liveOrders.map((t) => this.checkTradeFill(t)));
+    const results = await Promise.allSettled(liveOrders.map((t) => this.checkTradeFill(t)));
+    const updated = results.filter((r) => r.status === 'fulfilled').length;
+    return { processed: liveOrders.length, updated };
   }
 
   async checkTradeFill(trade: Trade): Promise<void> {

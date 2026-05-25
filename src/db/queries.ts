@@ -9,6 +9,7 @@ import type {
   BotSettings,
   Onboarding,
   MarketSnapshot,
+  PnlSnapshot,
   InsertFill,
   InsertBotLog,
   InsertAuditLog,
@@ -198,6 +199,7 @@ export async function updateTradeStatus(
       | 'size_remaining'
       | 'position_state'
       | 'resolution_status'
+      | 'dispute_notes'
     >
   >,
 ): Promise<void> {
@@ -449,6 +451,134 @@ export async function getRollingWinRate(lookback: number): Promise<number | null
   } catch (err) {
     logError('getRollingWinRate', err);
     return null;
+  }
+}
+
+// ─── Trade resolution ─────────────────────────────────────────────────────────
+
+export async function getFilledPendingTrades(): Promise<Trade[]> {
+  try {
+    const { data, error } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('status', 'filled')
+      .eq('resolution_status', 'pending');
+    if (error) throw error;
+    return (data as Trade[]) ?? [];
+  } catch (err) {
+    logError('getFilledPendingTrades', err);
+    return [];
+  }
+}
+
+export async function resolveTrade(
+  tradeId: number,
+  outcome: 'win' | 'loss',
+  pnl: number,
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('trades')
+      .update({
+        status: 'resolved',
+        position_state: 'CLOSED',
+        outcome,
+        pnl,
+        resolution_status: 'confirmed',
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('id', tradeId);
+    if (error) throw error;
+  } catch (err) {
+    logError('resolveTrade', err);
+  }
+}
+
+export async function resolveDemoTrade(
+  tradeId: number,
+  outcome: 'win' | 'loss',
+  pnl: number,
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('demo_trades')
+      .update({
+        status: 'resolved',
+        outcome,
+        pnl,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('id', tradeId);
+    if (error) throw error;
+  } catch (err) {
+    logError('resolveDemoTrade', err);
+  }
+}
+
+// ─── PnL Snapshots ────────────────────────────────────────────────────────────
+
+export async function upsertPnlSnapshot(snapshot: {
+  date: string;
+  starting_balance: number;
+  ending_balance: number;
+  trades_placed: number;
+  trades_won: number;
+  trades_lost: number;
+  net_pnl: number;
+  roi_percent: number;
+  mode: 'demo' | 'live';
+}): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('pnl_snapshots')
+      .upsert(snapshot, { onConflict: 'date' });
+    if (error) throw error;
+  } catch (err) {
+    logError('upsertPnlSnapshot', err);
+  }
+}
+
+export async function getPnlSnapshotHistory(days: number): Promise<PnlSnapshot[]> {
+  try {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const { data, error } = await supabase
+      .from('pnl_snapshots')
+      .select('*')
+      .gte('date', since.toISOString().slice(0, 10))
+      .order('date', { ascending: true });
+    if (error) throw error;
+    return (data as PnlSnapshot[]) ?? [];
+  } catch (err) {
+    logError('getPnlSnapshotHistory', err);
+    return [];
+  }
+}
+
+export async function getTodayTradeSummary(
+  mode: 'demo' | 'live',
+): Promise<{ placed: number; won: number; lost: number; netPnl: number }> {
+  try {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const table = mode === 'demo' ? 'demo_trades' : 'trades';
+
+    const { data, error } = await supabase
+      .from(table)
+      .select('outcome, pnl')
+      .gte('placed_at', today.toISOString());
+    if (error) throw error;
+
+    const rows = (data as { outcome: string | null; pnl: number | null }[]) ?? [];
+    return {
+      placed: rows.length,
+      won: rows.filter((r) => r.outcome === 'win').length,
+      lost: rows.filter((r) => r.outcome === 'loss').length,
+      netPnl: rows.reduce((s, r) => s + (r.pnl ?? 0), 0),
+    };
+  } catch (err) {
+    logError('getTodayTradeSummary', err);
+    return { placed: 0, won: 0, lost: 0, netPnl: 0 };
   }
 }
 

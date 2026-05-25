@@ -173,6 +173,29 @@ class PolymarketClient {
     }).catch(() => null);
   }
 
+  // Returns 'YES'/'NO'/'INVALID' if market resolved, null if still live
+  async getMarketResolution(conditionId: string): Promise<'YES' | 'NO' | 'INVALID' | null> {
+    return withRetry(async () => {
+      const resp = await this.clob.get<PolymarketMarket>(`/markets/${conditionId}`);
+      const market = resp.data;
+
+      const yes = market.tokens.find((t) => t.outcome === 'Yes');
+      const no = market.tokens.find((t) => t.outcome === 'No');
+
+      if (yes?.winner) return 'YES';
+      if (no?.winner) return 'NO';
+
+      // Price-threshold fallback for APIs that don't expose winner field
+      if (yes && yes.price >= 0.99) return 'YES';
+      if (yes && yes.price <= 0.01) return 'NO';
+
+      // Closed with no clear winner = invalid/voided
+      if (market.closed && !market.active) return 'INVALID';
+
+      return null;
+    }).catch(() => null);
+  }
+
   // ── Health check ─────────────────────────────────────────────────────────────
 
   async ping(): Promise<boolean> {
