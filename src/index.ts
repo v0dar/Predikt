@@ -1,40 +1,33 @@
-import { config } from './config/index.js'; // validates all env vars — throws if invalid
+import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
-import { verifyConnection } from './db/supabase.js';
-import { registerEventHandlers } from './events/event-handlers.js';
 import { stateMachine } from './core/state-machine.js';
-import { initRedis, disconnectRedis } from './locks/index.js';
+import { bootstrap } from './core/bootstrap.js';
+import { startScheduler } from './scheduler/jobs.js';
+import { disconnectRedis } from './locks/index.js';
 import { createServer } from './dashboard/server.js';
+import { upsertBotStatus } from './db/queries.js';
 
 async function main(): Promise<void> {
   logger.info('Predikt starting...');
 
-  // 1. Verify Supabase
-  await verifyConnection();
+  // 1. Bootstrap: verify DB, wire events, init Redis, BOOTING → SYNCING → READY
+  await bootstrap();
 
-  // 2. Wire up all event subscriptions
-  registerEventHandlers();
+  // 2. Start scheduler (cron jobs + immediate first scan)
+  const scheduler = await startScheduler();
 
-  // 3. Connect Redis (non-blocking — bot runs without it in demo mode)
-  initRedis();
-
-  // 4. Advance state machine past BOOTING
-  stateMachine.transition('SYNCING');
-  stateMachine.transition('READY');
-
-  // 5. Start Express dashboard
+  // 3. Start dashboard
   const { app, shutdown } = createServer();
 
   const server = app.listen(config.DASHBOARD_PORT, () => {
     logger.info(`Dashboard running on http://localhost:${config.DASHBOARD_PORT}`);
-    logger.info(`State: ${stateMachine.state}`);
-    logger.info('Bot ready. Awaiting Phase 5...');
+    logger.info(`Bot state: ${stateMachine.state}`);
   });
 
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       logger.error(
-        `Port ${config.DASHBOARD_PORT} is already in use. Set DASHBOARD_PORT to a free port.`,
+        `Port ${config.DASHBOARD_PORT} already in use. Set a different DASHBOARD_PORT in .env`,
       );
     } else {
       logger.error('Server error', { message: err.message });
@@ -42,21 +35,30 @@ async function main(): Promise<void> {
     process.exit(1);
   });
 
+  // 4. Graceful shutdown
   const handleShutdown = async (): Promise<void> => {
-    logger.info('Shutdown signal received. Closing gracefully...');
+    logger.info('Shutdown signal received — closing gracefully');
 
-    stateMachine.transition('SHUTTING_DOWN');
+    scheduler.stop();
+
+    try {
+      stateMachine.transition('SHUTTING_DOWN');
+    } catch {
+      // May already be in EMERGENCY_STOPPED
+    }
+
+    await upsertBotStatus({ state: 'SHUTTING_DOWN', running: false });
 
     await shutdown();
     await disconnectRedis();
 
     server.close(() => {
-      logger.info('HTTP server closed.');
+      logger.info('Server closed. Goodbye.');
       process.exit(0);
     });
 
     setTimeout(() => {
-      logger.error('Forced shutdown after timeout.');
+      logger.error('Forced shutdown after 10s timeout.');
       process.exit(1);
     }, 10_000);
   };
