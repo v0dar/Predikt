@@ -7,6 +7,7 @@ import { clobClient } from '../../api/clob.js';
 import { stateMachine } from '../../core/state-machine.js';
 import { triggerImmediateScan } from '../../scheduler/jobs.js';
 import { runBacktest } from '../../backtesting/runner.js';
+import { getChecklistState } from '../../onboarding/manager.js';
 import { supabase } from '../../db/supabase.js';
 
 export const apiRouter = Router();
@@ -47,6 +48,15 @@ apiRouter.get('/status', async (_req, res) => {
     res.json(data ?? {});
   } catch {
     res.json({ state: stateMachine.state });
+  }
+});
+
+apiRouter.get('/onboarding/checklist', async (_req, res) => {
+  try {
+    const state = await getChecklistState();
+    res.json(state ?? { phase: 1, items: [], canAdvance: false });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

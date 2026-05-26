@@ -168,30 +168,39 @@ async function loadTodaySummary() {
 
 async function loadOnboarding() {
   try {
-    const sb = window._supabase;
-    const { data } = await sb.from('onboarding').select('*').eq('id', 1).single();
-    if (!data) return;
-    const phase = data.current_phase ?? 1;
-    const phases = [
-      { n: 1, label: 'Demo trading', desc: '7 days · 10 trades · ≥50% win rate',
-        extra: `Trades: ${data.demo_trades_count ?? 0} · Win rate: ${Number(data.demo_win_rate ?? 0).toFixed(1)}%` },
-      { n: 2, label: 'Micro live ($10)', desc: '20 real trades · ≥45% win rate',
-        extra: `Trades: ${data.live_trades_count ?? 0} · Win rate: ${Number(data.live_win_rate ?? 0).toFixed(1)}%` },
-      { n: 3, label: 'Full live', desc: 'Scale gradually', extra: 'Active' },
-    ];
-    document.getElementById('onboarding-content').innerHTML = phases.map(p => {
-      const done = phase > p.n;
-      const active = phase === p.n;
-      const icon = done ? 'bi-check-circle-fill text-success' : active ? 'bi-arrow-right-circle-fill' : 'bi-circle text-muted';
-      return `<div class="onboarding-step ${active ? 'active' : done ? 'done' : ''}">
-        <i class="bi ${icon} me-2 mt-1 flex-shrink-0"></i>
-        <div>
-          <div class="fw-500 small">${p.label}</div>
-          <div class="text-muted" style="font-size:0.72rem">${p.desc}</div>
-          ${active ? `<div class="mt-1" style="font-size:0.72rem;color:var(--accent-primary)">${p.extra}</div>` : ''}
-        </div>
-      </div>`;
-    }).join('');
+    const res = await fetch('/api/onboarding/checklist');
+    const state = await res.json();
+    const container = document.getElementById('onboarding-content');
+    if (!container) return;
+
+    const phaseLabels = {
+      1: { label: 'Phase 1 — Demo', desc: '7 days · 10 trades · ≥50% win rate' },
+      2: { label: 'Phase 2 — Micro Live', desc: '20 real trades · ≥45% win rate' },
+      3: { label: 'Phase 3 — Full Live', desc: 'Scale gradually' },
+    };
+    const currentPhase = state.phase ?? 1;
+    const pl = phaseLabels[currentPhase] ?? phaseLabels[1];
+
+    const checklistHtml = (state.items ?? []).map(item => `
+      <div class="d-flex align-items-center gap-2 py-1">
+        <i class="bi ${item.done ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted'}" style="font-size:0.85rem;flex-shrink:0"></i>
+        <span class="small ${item.done ? 'text-muted' : ''}" style="flex:1">${app.escHtml(item.label)}</span>
+        <span class="small fw-500" style="color:${item.done ? 'var(--accent-success)' : 'var(--text-muted)'}">${app.escHtml(item.value)}</span>
+      </div>`).join('');
+
+    const advanceBadge = state.canAdvance
+      ? `<div class="mt-2 p-2 rounded small" style="background:rgba(30,215,96,0.1);color:var(--accent-success)">
+           <i class="bi bi-lightning-fill me-1"></i>All conditions met — ready to advance!
+         </div>`
+      : '';
+
+    container.innerHTML = `
+      <div class="mb-2">
+        <span class="fw-500 small">${app.escHtml(pl.label)}</span>
+        <span class="text-muted ms-2" style="font-size:0.72rem">${app.escHtml(pl.desc)}</span>
+      </div>
+      ${checklistHtml}
+      ${advanceBadge}`;
   } catch (e) { console.error(e); }
 }
 

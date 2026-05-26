@@ -17,6 +17,7 @@ import { reconcileMarketState } from '../reconciliation/market-state.js';
 import { writeDailySnapshot } from '../portfolio/snapshot.js';
 import { runHealthCheck } from '../resilience/health-monitor.js';
 import { analyticsTracker } from '../analytics/tracker.js';
+import { runOnboardingCycle } from '../onboarding/manager.js';
 import { buildStrategyContext } from '../strategy/sandbox.js';
 import { valueBetStrategy } from '../strategy/value-bet.js';
 import { getOpenTrades, upsertBotStatus, getOpenPositionCount } from '../db/queries.js';
@@ -236,6 +237,13 @@ export async function startScheduler(): Promise<Scheduler> {
 
   // Analytics summary every hour
   tasks.push(cron.schedule('0 * * * *', () => analyticsTracker.logSummary()));
+
+  // Onboarding cycle every 30 minutes — syncs stats, checks phase advancement
+  tasks.push(
+    cron.schedule('*/30 * * * *', () => {
+      void withLock('onboarding', 30_000, runOnboardingCycle);
+    }),
+  );
 
   // Status heartbeat every 30 seconds (6-field cron)
   tasks.push(cron.schedule('*/30 * * * * *', () => void heartbeat()));
