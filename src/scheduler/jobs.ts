@@ -256,3 +256,8 @@ export async function startScheduler(): Promise<Scheduler> {
     },
   };
 }
+
+// Called by the dashboard API to trigger an immediate scan outside the cron schedule
+export function triggerImmediateScan(): void {
+  void withLock('scan', 60_000, runScanCycle);
+}

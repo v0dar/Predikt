@@ -19,6 +19,51 @@
 - Use Node.js ESM (`"type": "module"` in package.json, `.ts` imports use `.js` extensions)
 - Maintain clean separation of concerns at all times
 
+## DASHBOARD RULES (enforce strictly)
+
+- The dashboard is a **Single Page Application (SPA)**. There is ONE shell file (`shell.html`). The Express server returns this shell for all page routes. The client-side router (`router.js`) handles all navigation.
+- **No full page reloads — ever.** Navigation swaps only `#main-content`. Both sidebars are permanent for the lifetime of the session.
+- **No polling for data refresh.** All live data comes from Supabase Realtime subscriptions wired in `realtime.js`. Page-level listeners (`window.onTradeChange`, `window.onStatusUpdate`, `window.onLogInsert`, `window.onSettingsChange`) are set in each page's `init()` and cleared in its cleanup function.
+- **All data fades in gracefully.** The router fades out old content (150ms), swaps HTML, then fades in new content (250ms). Tables use `.fade-row` animation on each `<tr>`. No jarring repaints.
+- **Two persistent sidebars** (Spotify-style dual sidebar):
+  - Left sidebar (300px): Sectioned nav (HOME / MARKETS / BOT) with section labels. Active nav item gets full-width `--accent-primary` background highlight. Logo at top, bot status badge + USDC balance + sign-out at bottom.
+  - Right sidebar (300px): Three tabs — Status (live bot stats), Activity (live log feed), Alerts (critical warnings). Tabs are client-side only, no page change.
+- **UI stack**: Bootstrap 5.3.x CDN + Bootstrap Icons CDN. No Tailwind. No other CSS frameworks.
+- **Chart.js instances** must be destroyed in each page's cleanup function (`return () => { chart.destroy(); }`) to prevent canvas reuse errors.
+- **`moduleResolution`** in `tsconfig.json` is `"bundler"` (not `"node"` — deprecated in TS 7+).
+
+### Dashboard file structure
+```
+src/dashboard/public/
+  shell.html          ← SPA shell served for ALL page routes
+  login.html          ← Standalone auth page (outside SPA)
+  favicon.svg
+  logo.svg
+  css/
+    theme.css         ← All CSS variables, layout, components
+  js/
+    app.js            ← Supabase init, auth, sidebar injection, shared utils
+    router.js         ← History API router with fade transitions
+    realtime.js       ← Supabase Realtime — all persistent subscriptions
+    charts.js         ← Chart.js factory functions
+    pages/
+      home.js         ← registers route '/'
+      trades.js       ← registers route '/trades'
+      markets.js      ← registers route '/markets'
+      analytics.js    ← registers route '/analytics'
+      backtesting.js  ← registers route '/backtesting'
+      settings.js     ← registers route '/settings'
+      logs.js         ← registers route '/logs'
+      wallet.js       ← registers route '/wallet'
+```
+
+### Page module contract
+Each page file must:
+1. Call `router.register(path, { title, template(), async init() })` — no other exports
+2. `template()` returns an HTML string for `#main-content`
+3. `init()` sets up event listeners and page-level realtime hooks, returns a cleanup function
+4. The cleanup function clears all `window.on*` listeners and destroys Chart.js instances
+
 ---
 
 ## ARCHITECTURE BOUNDARIES (enforce strictly)

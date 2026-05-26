@@ -1,4 +1,6 @@
 import Redis from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — redlock types don't expose via package.json "exports"; skipLibCheck handles the rest
 import Redlock from 'redlock';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';

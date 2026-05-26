@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predikt — Sign In</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <style>
+    body { overflow: auto; }
+  </style>
+</head>
+<body class="login-body">
+
+  <div class="login-box" style="animation:fadeSlideIn 0.4s ease">
+    <div class="text-center mb-4">
+      <img src="/logo.svg" alt="Predikt" width="52" height="52" class="mb-3">
+      <h4 class="fw-600 mb-1" style="letter-spacing:-0.5px">Predikt</h4>
+      <p class="text-muted small mb-0">Trading Bot Dashboard</p>
+    </div>
+
+    <div id="login-error" class="alert alert-danger d-none small py-2"></div>
+
+    <form id="login-form">
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input type="email" class="form-control" id="email" placeholder="you@example.com" required autocomplete="email">
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-control" id="password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary w-100" id="login-btn">
+        <span id="login-spinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
+        Sign In
+      </button>
+    </form>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    (async () => {
+      const { supabaseUrl, supabaseAnonKey } = await fetch('/api/config').then(r => r.json());
+      const sb = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+      // Already authenticated? Go to app
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) { window.location.replace('/'); return; }
+
+      document.getElementById('login-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = document.getElementById('login-btn');
+        const spinner = document.getElementById('login-spinner');
+        const errEl = document.getElementById('login-error');
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        errEl.classList.add('d-none');
+
+        const { error } = await sb.auth.signInWithPassword({
+          email: document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value,
+        });
+
+        if (error) {
+          errEl.textContent = error.message;
+          errEl.classList.remove('d-none');
+          btn.disabled = false;
+          spinner.classList.add('d-none');
+        } else {
+          window.location.replace('/');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

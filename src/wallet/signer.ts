@@ -16,12 +16,14 @@ const ERC20_ABI = [
   'function decimals() view returns (uint8)',
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
+  'function transfer(address to, uint256 amount) returns (bool)',
 ];
 
 interface IERC20 {
   balanceOf(address: string): Promise<bigint>;
   allowance(owner: string, spender: string): Promise<bigint>;
   approve(spender: string, amount: bigint): Promise<ethers.TransactionResponse>;
+  transfer(to: string, amount: bigint): Promise<ethers.TransactionResponse>;
 }
 
 // EIP-712 order signing types for Polymarket CTF Exchange
@@ -186,6 +188,16 @@ class WalletSigner {
     const signature = await wallet.signTypedData(EIP712_DOMAIN, ORDER_TYPES, orderStruct);
 
     return { ...orderStruct, signature };
+  }
+
+  async transferUsdc(toAddress: string, amountUsd: number): Promise<string> {
+    const wallet = this.getWallet();
+    const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, wallet) as unknown as IERC20;
+    const amount = ethers.parseUnits(amountUsd.toFixed(6), 6);
+    const tx = await usdc.transfer(toAddress, amount);
+    logger.info('USDC transfer submitted', { txHash: tx.hash, toAddress, amountUsd });
+    await tx.wait();
+    return tx.hash;
   }
 
   async signL2AuthMessage(timestamp: number, method: string, path: string, body = ''): Promise<string> {
