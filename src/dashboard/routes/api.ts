@@ -6,6 +6,7 @@ import { signer } from '../../wallet/signer.js';
 import { clobClient } from '../../api/clob.js';
 import { stateMachine } from '../../core/state-machine.js';
 import { triggerImmediateScan } from '../../scheduler/jobs.js';
+import { runBacktest } from '../../backtesting/runner.js';
 import { supabase } from '../../db/supabase.js';
 
 export const apiRouter = Router();
@@ -145,9 +146,46 @@ apiRouter.post('/bot/emergency-stop', requireAuth, async (_req, res) => {
   }
 });
 
-apiRouter.post('/backtest/run', requireAuth, (_req, res) => {
-  // Implemented in Phase 12
-  res.status(501).json({ error: 'Backtesting engine not yet implemented (Phase 12)' });
+apiRouter.post('/backtest/run', requireAuth, async (req, res) => {
+  try {
+    const body = req.body as {
+      strategy?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      startingBalance?: number;
+      minEdge?: number;
+      maxBetUsd?: number;
+      kellyFraction?: number;
+    };
+
+    const dateFrom = body.dateFrom ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const dateTo   = body.dateTo   ?? new Date().toISOString().slice(0, 10);
+    const startingBalance = Number(body.startingBalance ?? 500);
+    const minEdge  = Number(body.minEdge ?? 5);
+    const maxBetUsd = Number(body.maxBetUsd ?? 10);
+    const kellyFraction = Number(body.kellyFraction ?? 0.25);
+
+    if (startingBalance <= 0 || minEdge <= 0) {
+      res.status(400).json({ error: 'Invalid configuration parameters' });
+      return;
+    }
+
+    const result = await runBacktest({
+      strategyName:    body.strategy ?? 'value-bet',
+      dateFrom,
+      dateTo,
+      startingBalance,
+      minEdgePercent:  minEdge,
+      maxBetUsd,
+      kellyFraction,
+    });
+
+    res.json(result);
+  } catch (err) {
+    const msg = (err as Error).message;
+    logger.error('Backtest run failed', { error: msg });
+    res.status(500).json({ error: msg });
+  }
 });
 
 apiRouter.get('/logs/download', requireAuth, async (_req, res) => {
