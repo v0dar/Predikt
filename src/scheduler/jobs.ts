@@ -15,6 +15,8 @@ import { reconcileFills } from '../reconciliation/fills.js';
 import { reconcilePositions } from '../reconciliation/positions.js';
 import { reconcileMarketState } from '../reconciliation/market-state.js';
 import { writeDailySnapshot } from '../portfolio/snapshot.js';
+import { runHealthCheck } from '../resilience/health-monitor.js';
+import { analyticsTracker } from '../analytics/tracker.js';
 import { buildStrategyContext } from '../strategy/sandbox.js';
 import { valueBetStrategy } from '../strategy/value-bet.js';
 import { getOpenTrades, upsertBotStatus, getOpenPositionCount } from '../db/queries.js';
@@ -224,6 +226,16 @@ export async function startScheduler(): Promise<Scheduler> {
       void withLock('snapshot', 60_000, writeDailySnapshot);
     }),
   );
+
+  // Health check every 5 minutes
+  tasks.push(
+    cron.schedule('*/5 * * * *', () => {
+      void runHealthCheck();
+    }),
+  );
+
+  // Analytics summary every hour
+  tasks.push(cron.schedule('0 * * * *', () => analyticsTracker.logSummary()));
 
   // Status heartbeat every 30 seconds (6-field cron)
   tasks.push(cron.schedule('*/30 * * * * *', () => void heartbeat()));
