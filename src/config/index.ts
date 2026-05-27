@@ -37,6 +37,10 @@ const envSchema = z.object({
   // Telegram (optional)
   TELEGRAM_BOT_TOKEN: z.string().default(''),
   TELEGRAM_CHAT_ID: z.string().default(''),
+
+  // Auth
+  ADMIN_EMAIL: z.string().email().default('admin@predikt.local'),
+  APP_URL: z.string().url().default('http://localhost:3003'),
 });
 
 export type Config = z.infer<typeof envSchema>;

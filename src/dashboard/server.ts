@@ -3,6 +3,7 @@ import { join } from 'path';
 import { logger } from '../utils/logger.js';
 import { apiRouter } from './routes/api.js';
 import { pagesRouter } from './routes/pages.js';
+import { authRouter } from './routes/auth.js';
 
 // Always resolve public dir from project root — works in both tsx dev and tsup prod
 const publicDir = join(process.cwd(), 'src', 'dashboard', 'public');
@@ -25,6 +26,9 @@ export function createServer(): ServerInstance {
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
+
+  // ─── Auth routes (Telegram callback, profile provision) ──────────────────
+  app.use('/auth', authRouter);
 
   // ─── API routes ───────────────────────────────────────────────────────────
   app.use('/api', apiRouter);

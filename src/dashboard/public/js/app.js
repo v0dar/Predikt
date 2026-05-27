@@ -286,6 +286,27 @@ window.app = {
   updateStatusWidgets, pushActivity, pushAlert,
 };
 
+// ─── User identity + role ────────────────────────────────────────────────────
+
+window._currentUser = null;   // { id, email, displayName, role, isAdmin }
+
+async function fetchMe() {
+  try {
+    const headers = await getAuthHeaders();
+    const me = await fetch('/api/me', { headers }).then(r => r.json());
+    window._currentUser = me;
+
+    // Apply admin class to body — CSS uses it to show/hide admin-only elements
+    if (me.isAdmin) document.body.classList.add('is-admin');
+
+    // Update sidebar display name
+    const balEl = document.getElementById('sidebar-balance');
+    if (balEl && me.displayName) balEl.title = me.displayName;
+
+    return me;
+  } catch { return null; }
+}
+
 // ─── App start ────────────────────────────────────────────────────────────────
 
 async function startApp() {
@@ -304,6 +325,9 @@ async function startApp() {
     window.location.href = '/login';
   });
 
+  // Fetch user role (sets body.is-admin if admin)
+  await fetchMe();
+
   await pollStatus();
   setInterval(pollStatus, 15_000);
 
@@ -313,3 +337,4 @@ async function startApp() {
 }
 
 window.startApp = startApp;
+window.fetchMe = fetchMe;

@@ -36,10 +36,44 @@ const requireAuth: RequestHandler = async (req, res, next) => {
 // Browser needs Supabase creds to init the client. Anon key is safe to expose.
 apiRouter.get('/config', (_req, res) => {
   res.json({
-    supabaseUrl: config.SUPABASE_URL,
-    supabaseAnonKey: config.SUPABASE_ANON_KEY,
-    version: '1.0.0',
+    supabaseUrl:      config.SUPABASE_URL,
+    supabaseAnonKey:  config.SUPABASE_ANON_KEY,
+    appUrl:           config.APP_URL,
+    version:          '1.0.0',
   });
+});
+
+// ─── /api/me — returns current user's role ────────────────────────────────────
+
+const _anonClient = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+
+apiRouter.get('/me', async (req, res) => {
+  const token = req.headers['authorization']?.replace('Bearer ', '');
+  if (!token) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  try {
+    const { data: { user }, error } = await _anonClient.auth.getUser(token);
+    if (error ?? !user) { res.status(401).json({ error: 'Invalid token' }); return; }
+
+    const isAdmin = user.email === config.ADMIN_EMAIL;
+
+    // Fetch display_name from user_profiles
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('display_name, role, telegram_id, telegram_username')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    res.json({
+      id:          user.id,
+      email:       user.email,
+      displayName: profile?.display_name ?? user.email?.split('@')[0] ?? 'User',
+      role:        isAdmin ? 'admin' : (profile?.role ?? 'user'),
+      isAdmin,
+      telegramUsername: profile?.telegram_username ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 apiRouter.get('/status', async (_req, res) => {

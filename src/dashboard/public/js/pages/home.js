@@ -7,16 +7,16 @@ router.register('/', {
     <div class="page-header">
       <h5 class="page-title">Overview</h5>
       <div class="d-flex gap-2 flex-wrap">
-        <button class="btn btn-sm btn-outline-secondary" id="btn-scan">
+        <button class="btn btn-sm btn-outline-secondary admin-only" id="btn-scan">
           <i class="bi bi-arrow-repeat me-1"></i>Scan Now
         </button>
-        <button class="btn btn-sm btn-warning" id="btn-pause">
+        <button class="btn btn-sm btn-warning admin-only" id="btn-pause">
           <i class="bi bi-pause-fill me-1"></i>Pause
         </button>
-        <button class="btn btn-sm btn-success d-none" id="btn-resume">
+        <button class="btn btn-sm btn-success admin-only d-none" id="btn-resume">
           <i class="bi bi-play-fill me-1"></i>Resume
         </button>
-        <button class="btn btn-sm btn-danger" id="btn-estop">
+        <button class="btn btn-sm btn-danger admin-only" id="btn-estop">
           <i class="bi bi-stop-fill me-1"></i>Emergency Stop
         </button>
       </div>
@@ -145,8 +145,9 @@ function applyStats(status) {
 }
 
 function syncBotButtons(state) {
-  document.getElementById('btn-pause')?.classList.toggle('d-none', state === 'PAUSED');
-  document.getElementById('btn-resume')?.classList.toggle('d-none', state !== 'PAUSED');
+  const paused = state === 'PAUSED';
+  document.getElementById('btn-pause')?.classList.toggle('d-none', paused);
+  document.getElementById('btn-resume')?.classList.toggle('d-none', !paused);
 }
 
 async function loadTodaySummary() {

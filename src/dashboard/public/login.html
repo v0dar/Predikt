@@ -9,47 +9,125 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/theme.css">
-  <style>
-    body { overflow: auto; }
-  </style>
+  <style>body { overflow: auto; }</style>
 </head>
 <body class="login-body">
 
-  <div class="login-box" style="animation:fadeSlideIn 0.4s ease">
+  <div class="login-box" style="animation:fadeSlideIn 0.4s ease;max-width:400px">
     <div class="text-center mb-4">
       <img src="/logo.svg" alt="Predikt" width="52" height="52" class="mb-3">
       <h4 class="fw-600 mb-1" style="letter-spacing:-0.5px">Predikt</h4>
-      <p class="text-muted small mb-0">Trading Bot Dashboard</p>
+      <p class="text-muted small mb-0">AI-powered prediction market signals</p>
     </div>
 
     <div id="login-error" class="alert alert-danger d-none small py-2"></div>
+
+    <!-- Error from Telegram callback -->
+    <div id="url-error" class="alert alert-warning d-none small py-2"></div>
 
     <form id="login-form">
       <div class="mb-3">
         <label class="form-label">Email</label>
         <input type="email" class="form-control" id="email" placeholder="you@example.com" required autocomplete="email">
       </div>
-      <div class="mb-4">
+      <div class="mb-1">
         <label class="form-label">Password</label>
         <input type="password" class="form-control" id="password" placeholder="••••••••" required autocomplete="current-password">
       </div>
-      <button type="submit" class="btn btn-primary w-100" id="login-btn">
+      <div class="text-end mb-3">
+        <a href="#" class="small text-muted" id="forgot-link">Forgot password?</a>
+      </div>
+      <button type="submit" class="btn btn-primary w-100 mb-3" id="login-btn">
         <span id="login-spinner" class="spinner-border spinner-border-sm me-2 d-none"></span>
         Sign In
       </button>
+
+      <div class="text-center mb-3">
+        <span class="text-muted small">Or continue with</span>
+      </div>
+
+      <!-- Telegram Login Widget -->
+      <div id="telegram-widget-container" class="d-flex justify-content-center"></div>
     </form>
+
+    <div class="text-center mt-3">
+      <span class="text-muted small">Don't have an account? </span>
+      <a href="/signup" class="small">Sign up</a>
+    </div>
   </div>
 
+  <!-- Password reset modal -->
+  <div class="modal fade" id="resetModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border-primary)">
+        <div class="modal-header border-0">
+          <h6 class="modal-title">Reset password</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="reset-msg" class="d-none alert alert-success small py-2">Check your email for a reset link.</div>
+          <input type="email" class="form-control form-control-sm" id="reset-email" placeholder="Your email">
+        </div>
+        <div class="modal-footer border-0">
+          <button class="btn btn-primary btn-sm" id="btn-send-reset">Send reset link</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
     (async () => {
-      const { supabaseUrl, supabaseAnonKey } = await fetch('/api/config').then(r => r.json());
+      const { supabaseUrl, supabaseAnonKey, appUrl } = await fetch('/api/config').then(r => r.json());
       const sb = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-      // Already authenticated? Go to app
+      // Show error from Telegram callback redirect
+      const params = new URLSearchParams(location.search);
+      const err = params.get('error');
+      if (err) {
+        const urlErr = document.getElementById('url-error');
+        const msgs = {
+          invalid_telegram_auth: 'Telegram authentication failed. Please try again.',
+          signup_failed: 'Account creation failed. Please try email signup.',
+          session_failed: 'Could not create session. Please try again.',
+          server_error: 'Server error. Please try again.',
+        };
+        urlErr.textContent = msgs[err] ?? 'Authentication error.';
+        urlErr.classList.remove('d-none');
+      }
+
+      // Already logged in?
       const { data: { session } } = await sb.auth.getSession();
       if (session) { window.location.replace('/'); return; }
 
+      // Listen for magic link / OAuth callback
+      sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          // Provision profile silently then redirect
+          fetch('/auth/provision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({}),
+          }).finally(() => window.location.replace('/'));
+        }
+      });
+
+      // Telegram Login Widget
+      const tgContainer = document.getElementById('telegram-widget-container');
+      // Bot username must be set — read from a global or derive from app URL
+      // Set window._telegramBotName = 'YourBotUsername' in a <script> tag if needed
+      const botUsername = window._telegramBotName ?? 'predikt_bot';
+      const tgScript = document.createElement('script');
+      tgScript.src = 'https://telegram.org/js/telegram-widget.js?22';
+      tgScript.setAttribute('data-telegram-login', botUsername);
+      tgScript.setAttribute('data-size', 'medium');
+      tgScript.setAttribute('data-auth-url', `${appUrl}/auth/telegram`);
+      tgScript.setAttribute('data-request-access', 'write');
+      tgScript.async = true;
+      tgContainer.appendChild(tgScript);
+
+      // Email / password login
       document.getElementById('login-form').addEventListener('submit', async e => {
         e.preventDefault();
         const btn = document.getElementById('login-btn');
@@ -59,8 +137,8 @@
         spinner.classList.remove('d-none');
         errEl.classList.add('d-none');
 
-        const { error } = await sb.auth.signInWithPassword({
-          email: document.getElementById('email').value.trim(),
+        const { data, error } = await sb.auth.signInWithPassword({
+          email:    document.getElementById('email').value.trim(),
           password: document.getElementById('password').value,
         });
 
@@ -69,9 +147,31 @@
           errEl.classList.remove('d-none');
           btn.disabled = false;
           spinner.classList.add('d-none');
-        } else {
-          window.location.replace('/');
+          return;
         }
+
+        // Provision profile (idempotent — no-op if already exists)
+        await fetch('/auth/provision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
+          body: JSON.stringify({}),
+        });
+
+        window.location.replace('/');
+      });
+
+      // Forgot password
+      document.getElementById('forgot-link').addEventListener('click', e => {
+        e.preventDefault();
+        document.getElementById('reset-email').value = document.getElementById('email').value;
+        new bootstrap.Modal(document.getElementById('resetModal')).show();
+      });
+
+      document.getElementById('btn-send-reset').addEventListener('click', async () => {
+        const email = document.getElementById('reset-email').value.trim();
+        if (!email) return;
+        await sb.auth.resetPasswordForEmail(email, { redirectTo: `${appUrl}/` });
+        document.getElementById('reset-msg').classList.remove('d-none');
       });
     })();
   </script>
