@@ -1,9 +1,11 @@
 import { Router, type RequestHandler } from 'express';
+import axios from 'axios';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { supabase } from '../../db/supabase.js';
 import { stateMachine } from '../../core/state-machine.js';
 import { clobClient } from '../../api/clob.js';
+import { signer } from '../../wallet/signer.js';
 import { triggerImmediateScan } from '../../scheduler/jobs.js';
 import { pingRedis } from '../../locks/index.js';
 
@@ -55,6 +57,82 @@ adminApiRouter.get('/health', async (_req, res) => {
 
   logger.debug('Health check', { status, durationMs: Date.now() - start });
   res.json({ status, checks, timestamp: new Date().toISOString() });
+});
+
+// ─── GET /api/admin/diagnose ──────────────────────────────────────────────────
+// Tests all four Polymarket config layers independently.
+
+adminApiRouter.get('/diagnose', async (_req, res) => {
+  const result: Record<string, unknown> = {};
+
+  // 1. Private key → wallet address
+  try {
+    result.wallet_address = signer.getAddress();
+    result.private_key    = 'ok';
+  } catch (err) {
+    result.private_key    = `error: ${(err as Error).message}`;
+    result.wallet_address = null;
+  }
+
+  // 2. RPC → on-chain balances
+  try {
+    const [usdc, matic] = await Promise.all([
+      signer.getUsdcBalance(),
+      signer.getMaticBalance(),
+    ]);
+    result.rpc      = 'ok';
+    result.usdc     = usdc;
+    result.matic    = matic;
+  } catch (err) {
+    result.rpc  = `error: ${(err as Error).message}`;
+    result.usdc = null;
+    result.matic = null;
+  }
+
+  // 3. Proxy address (from env — not validated on-chain)
+  result.proxy_address = config.POLYMARKET_PROXY_ADDRESS ?? null;
+  result.proxy_set     = !!config.POLYMARKET_PROXY_ADDRESS;
+
+  // 4. CLOB API connectivity (public endpoint — no auth needed)
+  try {
+    const resp = await axios.get(`${config.POLYMARKET_API_BASE}/ok`, { timeout: 8_000 });
+    result.clob_connectivity = resp.status === 200 ? 'ok' : `http ${resp.status}`;
+  } catch (err) {
+    result.clob_connectivity = `error: ${(err as Error).message}`;
+  }
+
+  // 5. CLOB API key — format check (UUID) + authenticated GET /orders
+  const key = config.POLYMARKET_API_KEY ?? '';
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!key) {
+    result.api_key = 'not set';
+  } else if (!uuidRe.test(key)) {
+    result.api_key = 'invalid format (expected UUID)';
+  } else {
+    // Test with authenticated GET /orders (Polymarket CLOB returns 401 on bad key)
+    try {
+      const ts  = Math.floor(Date.now() / 1000);
+      const sig = await signer.signL2AuthMessage(ts, 'GET', '/orders');
+      const resp = await axios.get(`${config.POLYMARKET_API_BASE}/orders`, {
+        timeout: 8_000,
+        params: { maker_address: result.wallet_address, status: 'LIVE' },
+        headers: {
+          'POLY_ADDRESS':   result.wallet_address as string,
+          'POLY_SIGNATURE': sig,
+          'POLY_TIMESTAMP': String(ts),
+          'POLY_NONCE':     String(Math.floor(Math.random() * 1e9)),
+          'POLY_API_KEY':   key,
+        },
+      });
+      result.api_key = resp.status === 200 ? 'ok' : `http ${resp.status}`;
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      result.api_key = status === 401 ? 'invalid (401)' : status === 403 ? 'unauthorized (403)' : `error: ${(err as Error).message}`;
+    }
+  }
+
+  logger.info('Polymarket diagnostic run', result);
+  res.json(result);
 });
 
 // ─── GET /api/admin/mode ──────────────────────────────────────────────────────
@@ -205,12 +283,38 @@ adminApiRouter.get('/risk', async (_req, res) => {
   }
 });
 
+// ─── GET /api/admin/settings ──────────────────────────────────────────────────
+
+adminApiRouter.get('/settings', async (_req, res) => {
+  try {
+    const { data } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', [
+        'MODE', 'DRY_RUN', 'STRATEGY',
+        'MAX_BET_USD', 'MAX_BET_PERCENT', 'MIN_EDGE_PERCENT',
+        'KELLY_FRACTION', 'MAX_OPEN_POSITIONS', 'DAILY_LOSS_LIMIT_USD',
+        'CRON_SCHEDULE', 'AUTO_SCALE_BETS', 'MAX_SLIPPAGE_PERCENT',
+        'TELEGRAM_NOTIFICATIONS',
+      ]);
+
+    const map = Object.fromEntries((data ?? []).map(r => [r.key, r.value]));
+    res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // ─── POST /api/admin/bot/pause ────────────────────────────────────────────────
 
 adminApiRouter.post('/bot/pause', (_req, res) => {
   try {
+    if (stateMachine.state === 'PAUSED') {
+      res.json({ success: true, state: 'PAUSED', message: 'Already paused' });
+      return;
+    }
     stateMachine.transition('PAUSED');
-    logger.info('Bot paused via Telegram');
+    logger.info('Bot paused via dashboard/Telegram');
     res.json({ success: true, state: 'PAUSED' });
   } catch (err) {
     res.status(400).json({ success: false, error: (err as Error).message });
@@ -221,8 +325,12 @@ adminApiRouter.post('/bot/pause', (_req, res) => {
 
 adminApiRouter.post('/bot/resume', (_req, res) => {
   try {
+    if (stateMachine.state === 'READY') {
+      res.json({ success: true, state: 'READY', message: 'Already running' });
+      return;
+    }
     stateMachine.transition('READY');
-    logger.info('Bot resumed via Telegram');
+    logger.info('Bot resumed via dashboard/Telegram');
     res.json({ success: true, state: 'READY' });
   } catch (err) {
     res.status(400).json({ success: false, error: (err as Error).message });
@@ -239,6 +347,23 @@ adminApiRouter.post('/bot/emergency-stop', async (_req, res) => {
     res.json({ success: true, state: 'EMERGENCY_STOPPED' });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+// ─── POST /api/admin/bot/recover ─────────────────────────────────────────────
+// Clears EMERGENCY_STOPPED → READY. Only valid after human review.
+
+adminApiRouter.post('/bot/recover', (_req, res) => {
+  if (stateMachine.state !== 'EMERGENCY_STOPPED') {
+    res.json({ success: false, error: `Not in EMERGENCY_STOPPED — current state: ${stateMachine.state}` });
+    return;
+  }
+  try {
+    stateMachine.transition('READY');
+    logger.info('Bot recovered from EMERGENCY_STOPPED via Telegram');
+    res.json({ success: true, state: 'READY' });
+  } catch (err) {
+    res.status(400).json({ success: false, error: (err as Error).message });
   }
 });
 

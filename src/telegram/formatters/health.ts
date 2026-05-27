@@ -15,6 +15,6 @@ export function formatHealth(h: HealthResponse): string {
     `${stateEmoji(h.checks.stateMachine)} ${bold('State Machine')}: ${escMd(h.checks.stateMachine)}`,
     '',
     line('Uptime', uptimeMins < 60 ? `${uptimeMins}m` : `${Math.floor(uptimeMins / 60)}h ${uptimeMins % 60}m`),
-    line('Checked', escMd(new Date(h.timestamp).toLocaleTimeString())),
+    line('Checked', new Date(h.timestamp).toLocaleTimeString()),
   ].join('\n');
 }

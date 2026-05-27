@@ -150,7 +150,13 @@ class PolymarketClient {
         asks: resp.data.asks.map((a) => ({ price: parseFloat(a.price), size: parseFloat(a.size) })),
       };
     }).catch((err) => {
-      logger.warn('Failed to fetch order book', { tokenId, error: (err as Error).message });
+      const status = (err as { response?: { status?: number } }).response?.status;
+      // 404 = market has no active order book (common in PRE_RESOLUTION) — not an error
+      if (status === 404) {
+        logger.debug('No order book for token (market likely pre-resolution)', { tokenId });
+      } else {
+        logger.warn('Failed to fetch order book', { tokenId, error: (err as Error).message });
+      }
       return null;
     });
   }

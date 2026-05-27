@@ -19,6 +19,9 @@ router.register('/', {
         <button class="btn btn-sm btn-danger admin-only" id="btn-estop">
           <i class="bi bi-stop-fill me-1"></i>Emergency Stop
         </button>
+        <button class="btn btn-sm btn-warning admin-only d-none" id="btn-recover">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Recover
+        </button>
       </div>
     </div>
 
@@ -145,9 +148,20 @@ function applyStats(status) {
 }
 
 function syncBotButtons(state) {
-  const paused = state === 'PAUSED';
-  document.getElementById('btn-pause')?.classList.toggle('d-none', paused);
-  document.getElementById('btn-resume')?.classList.toggle('d-none', !paused);
+  const paused   = state === 'PAUSED';
+  const estopped = state === 'EMERGENCY_STOPPED';
+
+  document.getElementById('btn-scan')?.classList.toggle('d-none', estopped);
+  document.getElementById('btn-pause')?.classList.toggle('d-none', paused || estopped);
+  document.getElementById('btn-resume')?.classList.toggle('d-none', !paused || estopped);
+  document.getElementById('btn-estop')?.classList.toggle('d-none', estopped);
+  document.getElementById('btn-recover')?.classList.toggle('d-none', !estopped);
+
+  // Stat card colour hint
+  const stateEl = document.getElementById('stat-state');
+  if (stateEl) {
+    stateEl.style.color = estopped ? 'var(--accent-danger)' : paused ? 'var(--accent-warning)' : '';
+  }
 }
 
 async function loadTodaySummary() {
@@ -155,16 +169,18 @@ async function loadTodaySummary() {
     const sb = window._supabase;
     const today = new Date().toISOString().slice(0, 10);
     const { data: snap } = await sb.from('pnl_snapshots').select('*').eq('date', today).maybeSingle();
+    const pnlEl = document.getElementById('today-pnl');
+    if (!pnlEl) return; // navigated away before async completed
     if (snap) {
       app.setText('today-trades', snap.trades_placed ?? 0);
       app.setText('today-won', snap.trades_won ?? 0);
       app.setText('today-lost', snap.trades_lost ?? 0);
-      document.getElementById('today-pnl').innerHTML = app.pnlSpan(snap.net_pnl);
+      pnlEl.innerHTML = app.pnlSpan(snap.net_pnl);
     } else {
       ['today-trades','today-won','today-lost'].forEach(id => app.setText(id, '0'));
-      document.getElementById('today-pnl').innerHTML = app.pnlSpan(0);
+      pnlEl.innerHTML = app.pnlSpan(0);
     }
-  } catch (e) { console.error(e); }
+  } catch (e) { /* navigated away */ }
 }
 
 async function loadOnboarding() {
@@ -210,7 +226,7 @@ async function loadRecentTrades() {
     const sb = window._supabase;
     const { data: trades } = await sb.from('trades').select('*').order('placed_at', { ascending: false }).limit(10);
     const tbody = document.getElementById('recent-trades-body');
-    if (!tbody) return;
+    if (!tbody) return; // navigated away
     if (!trades?.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No trades yet</td></tr>';
       return;
@@ -228,26 +244,37 @@ async function loadRecentTrades() {
 }
 
 function wireHomeControls() {
-  document.getElementById('btn-scan')?.addEventListener('click', async () => {
-    try { await app.apiPost('/bot/scan'); app.showToast('Scan triggered'); }
-    catch (e) { app.showToast(e.message, 'danger'); }
-  });
-  document.getElementById('btn-pause')?.addEventListener('click', async () => {
-    try { await app.apiPost('/bot/pause'); app.showToast('Bot paused', 'warning'); }
-    catch (e) { app.showToast(e.message, 'danger'); }
-  });
-  document.getElementById('btn-resume')?.addEventListener('click', async () => {
-    try { await app.apiPost('/bot/resume'); app.showToast('Bot resumed'); }
-    catch (e) { app.showToast(e.message, 'danger'); }
-  });
+  async function doAction(path, toastMsg, toastType = 'success') {
+    try {
+      const result = await app.apiPost(path);
+      app.showToast(toastMsg, toastType);
+      // Use the state from the API response directly — bot_status table lags up to 10s
+      if (result.state && document.getElementById('stat-state')) {
+        const merged = Object.assign({}, window._botStatus ?? {}, { state: result.state });
+        app.updateStatusWidgets(merged);
+        applyStats(merged);
+      }
+    } catch (e) { app.showToast(e.message, 'danger'); }
+  }
+
+  document.getElementById('btn-scan')?.addEventListener('click', () =>
+    doAction('/bot/scan', 'Scan triggered'));
+
+  document.getElementById('btn-pause')?.addEventListener('click', () =>
+    doAction('/bot/pause', 'Bot paused', 'warning'));
+
+  document.getElementById('btn-resume')?.addEventListener('click', () =>
+    doAction('/bot/resume', 'Bot resumed'));
+
+  document.getElementById('btn-recover')?.addEventListener('click', () =>
+    doAction('/bot/recover', 'Bot recovered — scanning will resume', 'success'));
+
   document.getElementById('btn-estop')?.addEventListener('click', () => {
     new bootstrap.Modal(document.getElementById('estopModal')).show();
   });
+
   document.getElementById('confirm-estop')?.addEventListener('click', async () => {
-    try {
-      await app.apiPost('/bot/emergency-stop');
-      bootstrap.Modal.getInstance(document.getElementById('estopModal'))?.hide();
-      app.showToast('Emergency stop triggered', 'danger');
-    } catch (e) { app.showToast(e.message, 'danger'); }
+    bootstrap.Modal.getInstance(document.getElementById('estopModal'))?.hide();
+    await doAction('/bot/emergency-stop', 'Emergency stop triggered', 'danger');
   });
 }

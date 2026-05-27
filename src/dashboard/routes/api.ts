@@ -160,6 +160,9 @@ apiRouter.post('/bot/scan', requireAuth, (_req, res) => {
 });
 
 apiRouter.post('/bot/pause', requireAuth, (_req, res) => {
+  if (stateMachine.state === 'PAUSED') {
+    res.json({ success: true, state: 'PAUSED' }); return;
+  }
   try {
     stateMachine.transition('PAUSED');
     logger.info('Bot paused via dashboard');
@@ -170,6 +173,9 @@ apiRouter.post('/bot/pause', requireAuth, (_req, res) => {
 });
 
 apiRouter.post('/bot/resume', requireAuth, (_req, res) => {
+  if (stateMachine.state === 'READY') {
+    res.json({ success: true, state: 'READY' }); return;
+  }
   try {
     stateMachine.transition('READY');
     logger.info('Bot resumed via dashboard');
@@ -180,6 +186,9 @@ apiRouter.post('/bot/resume', requireAuth, (_req, res) => {
 });
 
 apiRouter.post('/bot/emergency-stop', requireAuth, async (_req, res) => {
+  if (stateMachine.state === 'EMERGENCY_STOPPED') {
+    res.json({ success: true, state: 'EMERGENCY_STOPPED' }); return;
+  }
   try {
     stateMachine.transition('EMERGENCY_STOPPED');
     await clobClient.cancelAllOrders();
@@ -187,6 +196,19 @@ apiRouter.post('/bot/emergency-stop', requireAuth, async (_req, res) => {
     res.json({ success: true, state: 'EMERGENCY_STOPPED' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+apiRouter.post('/bot/recover', requireAuth, (_req, res) => {
+  if (stateMachine.state !== 'EMERGENCY_STOPPED') {
+    res.json({ success: false, error: `Not in EMERGENCY_STOPPED — state is ${stateMachine.state}` }); return;
+  }
+  try {
+    stateMachine.transition('READY');
+    logger.info('Bot recovered from EMERGENCY_STOPPED via dashboard');
+    res.json({ success: true, state: 'READY' });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
   }
 });
 

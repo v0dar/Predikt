@@ -5,7 +5,7 @@ export function formatStatus(s: BotStatusResponse): string {
   const state   = s.state ?? '—';
   const emoji   = stateEmoji(state);
   const dryTag  = s.dry_run ? ' \\[DRY RUN\\]' : '';
-  const modeTag = escMd(s.mode?.toUpperCase() ?? '—');
+  const modeTag = s.mode?.toUpperCase() ?? '—';
 
   const uptimeMin = s.uptime_seconds ? Math.floor(s.uptime_seconds / 60) : 0;
   const uptime    = uptimeMin < 60 ? `${uptimeMin}m` : `${Math.floor(uptimeMin / 60)}h ${uptimeMin % 60}m`;

@@ -10,9 +10,9 @@ export async function modeCommand(ctx: BotContext): Promise<void> {
   const text = [
     `⚙️ ${bold('Trading Mode')}`,
     escMd(divider),
-    line('Mode',     escMd(m.mode?.toUpperCase() ?? '—')),
-    line('Strategy', escMd(m.strategy ?? '—')),
-    line('State',    escMd(m.state ?? '—')),
+    line('Mode',     m.mode?.toUpperCase() ?? '—'),
+    line('Strategy', m.strategy ?? '—'),
+    line('State',    m.state ?? '—'),
     '',
     dryTag,
   ].join('\n');

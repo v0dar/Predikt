@@ -6,14 +6,14 @@
 
 // ─── Supabase init ────────────────────────────────────────────────────────────
 
-let supabase = null;
+let _sbClient = null;
 
 async function initSupabase() {
-  if (supabase) return supabase;
+  if (_sbClient) return _sbClient;
   const { supabaseUrl, supabaseAnonKey } = await fetch('/api/config').then(r => r.json());
-  supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
-  window._supabase = supabase;
-  return supabase;
+  _sbClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+  window._supabase = _sbClient;
+  return _sbClient;
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────

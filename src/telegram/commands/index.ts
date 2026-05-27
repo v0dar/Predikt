@@ -15,6 +15,9 @@ import { riskCommand }                                      from './risk.js';
 import { pauseCommand }                                     from './pause.js';
 import { resumeCommand }                                    from './resume.js';
 import { emergencyStopCommand, handleEmergencyStopCallback } from './emergency-stop.js';
+import { configCommand }                                    from './config.js';
+import { diagnoseCommand }                                  from './diagnose.js';
+import { recoverCommand }                                   from './recover.js';
 
 export function registerCommands(bot: Bot<BotContext>): void {
   // ─── Viewer commands (all authenticated roles) ──────────────────────────
@@ -23,6 +26,7 @@ export function registerCommands(bot: Bot<BotContext>): void {
   bot.command('status',    statusCommand);
   bot.command('health',    healthCommand);
   bot.command('mode',      modeCommand);
+  bot.command('config',    configCommand);
   bot.command('signals',   signalsCommand);
   bot.command('positions', positionsCommand);
   bot.command('portfolio', portfolioCommand);
@@ -30,10 +34,12 @@ export function registerCommands(bot: Bot<BotContext>): void {
   bot.command('risk',      riskCommand);
 
   // ─── Admin commands ─────────────────────────────────────────────────────
-  bot.command('pause',  requireRole('ADMIN', 'OWNER'), pauseCommand);
-  bot.command('resume', requireRole('ADMIN', 'OWNER'), resumeCommand);
+  bot.command('diagnose', requireRole('ADMIN', 'OWNER'), diagnoseCommand);
+  bot.command('pause',    requireRole('ADMIN', 'OWNER'), pauseCommand);
+  bot.command('resume',   requireRole('ADMIN', 'OWNER'), resumeCommand);
 
   // ─── Owner commands ─────────────────────────────────────────────────────
+  bot.command('recover',        requireRole('OWNER'), recoverCommand);
   bot.command('emergency_stop', requireRole('OWNER'), emergencyStopCommand);
 
   // ─── Inline keyboard callbacks ──────────────────────────────────────────

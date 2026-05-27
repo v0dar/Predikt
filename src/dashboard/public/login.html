@@ -9,7 +9,48 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/theme.css">
-  <style>body { overflow: auto; }</style>
+  <style>
+    body { overflow: auto; }
+
+    .auth-error {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      animation: fadeSlideIn 0.2s ease;
+    }
+    .auth-error.error {
+      background: rgba(255, 68, 68, 0.12);
+      border: 1px solid rgba(255, 68, 68, 0.3);
+      color: #ff8080;
+    }
+    .auth-error.warning {
+      background: rgba(245, 166, 35, 0.12);
+      border: 1px solid rgba(245, 166, 35, 0.3);
+      color: #f5a623;
+    }
+    .auth-error .err-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+    .auth-error .err-text { flex: 1; }
+
+    .tg-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+    .tg-divider::before, .tg-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-primary);
+    }
+  </style>
 </head>
 <body class="login-body">
 
@@ -20,10 +61,17 @@
       <p class="text-muted small mb-0">AI-powered prediction market signals</p>
     </div>
 
-    <div id="login-error" class="alert alert-danger d-none small py-2"></div>
+    <!-- Login error -->
+    <div id="login-error" class="auth-error error d-none">
+      <span class="err-icon">⚠️</span>
+      <span class="err-text" id="login-error-text"></span>
+    </div>
 
-    <!-- Error from Telegram callback -->
-    <div id="url-error" class="alert alert-warning d-none small py-2"></div>
+    <!-- Error from Telegram callback redirect -->
+    <div id="url-error" class="auth-error warning d-none">
+      <span class="err-icon">ℹ️</span>
+      <span class="err-text" id="url-error-text"></span>
+    </div>
 
     <form id="login-form">
       <div class="mb-3">
@@ -42,12 +90,11 @@
         Sign In
       </button>
 
-      <div class="text-center mb-3">
-        <span class="text-muted small">Or continue with</span>
+      <!-- Telegram Login Widget — hidden on localhost -->
+      <div id="telegram-section" class="d-none">
+        <div class="tg-divider">or continue with</div>
+        <div id="telegram-widget-container" class="d-flex justify-content-center"></div>
       </div>
-
-      <!-- Telegram Login Widget -->
-      <div id="telegram-widget-container" class="d-flex justify-content-center"></div>
     </form>
 
     <div class="text-center mt-3">
@@ -65,7 +112,10 @@
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <div id="reset-msg" class="d-none alert alert-success small py-2">Check your email for a reset link.</div>
+          <div id="reset-msg" class="d-none auth-error warning mb-0">
+            <span class="err-icon">✉️</span>
+            <span class="err-text">Check your email for a reset link.</span>
+          </div>
           <input type="email" class="form-control form-control-sm" id="reset-email" placeholder="Your email">
         </div>
         <div class="modal-footer border-0">
@@ -82,19 +132,28 @@
       const { supabaseUrl, supabaseAnonKey, appUrl } = await fetch('/api/config').then(r => r.json());
       const sb = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
+      function showError(id, msg) {
+        const box  = document.getElementById(id);
+        const text = document.getElementById(id + '-text');
+        if (!box || !text) return;
+        text.textContent = msg;
+        box.classList.remove('d-none');
+      }
+      function hideError(id) {
+        document.getElementById(id)?.classList.add('d-none');
+      }
+
       // Show error from Telegram callback redirect
       const params = new URLSearchParams(location.search);
       const err = params.get('error');
       if (err) {
-        const urlErr = document.getElementById('url-error');
         const msgs = {
           invalid_telegram_auth: 'Telegram authentication failed. Please try again.',
-          signup_failed: 'Account creation failed. Please try email signup.',
-          session_failed: 'Could not create session. Please try again.',
-          server_error: 'Server error. Please try again.',
+          signup_failed:         'Account creation failed. Please try email signup.',
+          session_failed:        'Could not create session. Please try again.',
+          server_error:          'Server error. Please try again.',
         };
-        urlErr.textContent = msgs[err] ?? 'Authentication error.';
-        urlErr.classList.remove('d-none');
+        showError('url-error', msgs[err] ?? 'Authentication error.');
       }
 
       // Already logged in?
@@ -104,7 +163,6 @@
       // Listen for magic link / OAuth callback
       sb.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
-          // Provision profile silently then redirect
           fetch('/auth/provision', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -113,29 +171,31 @@
         }
       });
 
-      // Telegram Login Widget
-      const tgContainer = document.getElementById('telegram-widget-container');
-      // Bot username must be set — read from a global or derive from app URL
-      // Set window._telegramBotName = 'YourBotUsername' in a <script> tag if needed
-      const botUsername = window._telegramBotName ?? 'predikt_bot';
-      const tgScript = document.createElement('script');
-      tgScript.src = 'https://telegram.org/js/telegram-widget.js?22';
-      tgScript.setAttribute('data-telegram-login', botUsername);
-      tgScript.setAttribute('data-size', 'medium');
-      tgScript.setAttribute('data-auth-url', `${appUrl}/auth/telegram`);
-      tgScript.setAttribute('data-request-access', 'write');
-      tgScript.async = true;
-      tgContainer.appendChild(tgScript);
+      // Telegram Login Widget — only load on real domains (not localhost)
+      const isLocalhost = ['localhost', '127.0.0.1'].includes(location.hostname);
+      if (!isLocalhost) {
+        const botUsername = window._telegramBotName ?? 'predikt_base_bot';
+        const tgSection   = document.getElementById('telegram-section');
+        const tgContainer = document.getElementById('telegram-widget-container');
+        const tgScript    = document.createElement('script');
+        tgScript.src = 'https://telegram.org/js/telegram-widget.js?22';
+        tgScript.setAttribute('data-telegram-login',  botUsername);
+        tgScript.setAttribute('data-size',            'medium');
+        tgScript.setAttribute('data-auth-url',        `${appUrl}/auth/telegram`);
+        tgScript.setAttribute('data-request-access',  'write');
+        tgScript.async = true;
+        tgContainer.appendChild(tgScript);
+        tgSection.classList.remove('d-none');
+      }
 
       // Email / password login
       document.getElementById('login-form').addEventListener('submit', async e => {
         e.preventDefault();
-        const btn = document.getElementById('login-btn');
+        const btn     = document.getElementById('login-btn');
         const spinner = document.getElementById('login-spinner');
-        const errEl = document.getElementById('login-error');
+        hideError('login-error');
         btn.disabled = true;
         spinner.classList.remove('d-none');
-        errEl.classList.add('d-none');
 
         const { data, error } = await sb.auth.signInWithPassword({
           email:    document.getElementById('email').value.trim(),
@@ -143,14 +203,12 @@
         });
 
         if (error) {
-          errEl.textContent = error.message;
-          errEl.classList.remove('d-none');
+          showError('login-error', error.message);
           btn.disabled = false;
           spinner.classList.add('d-none');
           return;
         }
 
-        // Provision profile (idempotent — no-op if already exists)
         await fetch('/auth/provision', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },

@@ -9,7 +9,61 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/theme.css">
-  <style>body { overflow: auto; }</style>
+  <style>
+    body { overflow: auto; }
+
+    .auth-error {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      animation: fadeSlideIn 0.2s ease;
+    }
+    .auth-error.error {
+      background: rgba(255, 68, 68, 0.12);
+      border: 1px solid rgba(255, 68, 68, 0.3);
+      color: #ff8080;
+    }
+    .auth-error .err-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+    .auth-error .err-text { flex: 1; }
+
+    .tg-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+    .tg-divider::before, .tg-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-primary);
+    }
+
+    .success-card {
+      text-align: center;
+      padding: 24px 0;
+    }
+    .success-card .success-icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+    }
+    .success-card .success-title {
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .success-card .success-desc {
+      color: var(--text-muted);
+      font-size: 0.84rem;
+      line-height: 1.6;
+    }
+  </style>
 </head>
 <body class="login-body">
 
@@ -20,12 +74,19 @@
       <p class="text-muted small mb-0">Join Predikt — AI-powered prediction market signals</p>
     </div>
 
-    <div id="signup-error" class="alert alert-danger d-none small py-2"></div>
+    <div id="signup-error" class="auth-error error d-none">
+      <span class="err-icon">⚠️</span>
+      <span class="err-text" id="signup-error-text"></span>
+    </div>
+
     <div id="signup-success" class="d-none">
-      <div class="text-center py-3">
-        <div style="font-size:2.5rem;margin-bottom:12px">✉️</div>
-        <div class="fw-500 mb-2">Check your email</div>
-        <div class="text-muted small">We sent a confirmation link to <strong id="confirm-email"></strong>.<br>Click it to activate your account.</div>
+      <div class="success-card">
+        <div class="success-icon">✉️</div>
+        <div class="success-title">Check your email</div>
+        <div class="success-desc">
+          We sent a confirmation link to <strong id="confirm-email"></strong>.<br>
+          Click it to activate your account.
+        </div>
         <a href="/login" class="btn btn-outline-secondary btn-sm mt-3">Back to login</a>
       </div>
     </div>
@@ -48,12 +109,11 @@
         Create account
       </button>
 
-      <div class="text-center">
-        <span class="text-muted small">Or sign up with</span>
+      <!-- Telegram Login Widget — hidden on localhost -->
+      <div id="telegram-section" class="d-none">
+        <div class="tg-divider">or sign up with</div>
+        <div id="telegram-widget-container" class="d-flex justify-content-center"></div>
       </div>
-
-      <!-- Telegram Login Widget — rendered server-side with bot name -->
-      <div id="telegram-widget-container" class="d-flex justify-content-center mt-3"></div>
     </form>
 
     <div class="text-center mt-3">
@@ -62,36 +122,46 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
     (async () => {
       const { supabaseUrl, supabaseAnonKey, appUrl } = await fetch('/api/config').then(r => r.json());
       const sb = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
+      function showError(msg) {
+        document.getElementById('signup-error-text').textContent = msg;
+        document.getElementById('signup-error').classList.remove('d-none');
+      }
+
       // Already logged in?
       const { data: { session } } = await sb.auth.getSession();
       if (session) { window.location.replace('/'); return; }
 
-      // Inject Telegram Login Widget
-      const botName = (new URL(appUrl)).hostname; // fallback — override if needed
-      const tgContainer = document.getElementById('telegram-widget-container');
-      const script = document.createElement('script');
-      script.src = 'https://telegram.org/js/telegram-widget.js?22';
-      script.setAttribute('data-telegram-login', window._telegramBotName ?? botName);
-      script.setAttribute('data-size', 'medium');
-      script.setAttribute('data-auth-url', `${appUrl}/auth/telegram`);
-      script.setAttribute('data-request-access', 'write');
-      script.async = true;
-      tgContainer.appendChild(script);
+      // Telegram Login Widget — only on real domains
+      const isLocalhost = ['localhost', '127.0.0.1'].includes(location.hostname);
+      if (!isLocalhost) {
+        const botUsername  = window._telegramBotName ?? 'predikt_base_bot';
+        const tgSection    = document.getElementById('telegram-section');
+        const tgContainer  = document.getElementById('telegram-widget-container');
+        const script       = document.createElement('script');
+        script.src = 'https://telegram.org/js/telegram-widget.js?22';
+        script.setAttribute('data-telegram-login',  botUsername);
+        script.setAttribute('data-size',            'medium');
+        script.setAttribute('data-auth-url',        `${appUrl}/auth/telegram`);
+        script.setAttribute('data-request-access',  'write');
+        script.async = true;
+        tgContainer.appendChild(script);
+        tgSection.classList.remove('d-none');
+      }
 
       document.getElementById('signup-form').addEventListener('submit', async e => {
         e.preventDefault();
-        const btn = document.getElementById('signup-btn');
+        const btn     = document.getElementById('signup-btn');
         const spinner = document.getElementById('signup-spinner');
-        const errEl = document.getElementById('signup-error');
+        document.getElementById('signup-error').classList.add('d-none');
         btn.disabled = true;
         spinner.classList.remove('d-none');
-        errEl.classList.add('d-none');
 
         const displayName = document.getElementById('display-name').value.trim();
         const email       = document.getElementById('email').value.trim();
@@ -103,29 +173,22 @@
         });
 
         if (error) {
-          errEl.textContent = error.message;
-          errEl.classList.remove('d-none');
+          showError(error.message);
           btn.disabled = false;
           spinner.classList.add('d-none');
           return;
         }
 
-        // If email confirmation is disabled in Supabase, session is immediate
         if (data.session) {
-          // Provision user profile
           await fetch('/auth/provision', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${data.session.access_token}`,
-            },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
             body: JSON.stringify({ display_name: displayName }),
           });
           window.location.replace('/');
           return;
         }
 
-        // Show "check your email" state
         document.getElementById('signup-form').classList.add('d-none');
         document.getElementById('signup-success').classList.remove('d-none');
         document.getElementById('confirm-email').textContent = email;

@@ -14,8 +14,7 @@ export function formatTrades(trades: TradeItem[]): string {
   const rows = trades.map((t, i) => {
     const q      = escMd((t.market_question ?? '—').slice(0, 50));
     const side   = t.side === 'YES' ? '🟢 YES' : '🔴 NO';
-    const pnl    = t.pnl != null ? escMd(fmtUsd(t.pnl)) : '—';
-    const pnlTag = t.pnl != null ? (t.pnl >= 0 ? `\\+${pnl}` : pnl) : '—';
+    const pnlTag = t.pnl != null ? escMd(fmtUsd(t.pnl)) : '—';
     const status = escMd(t.status);
     const mode   = escMd(t.mode?.toUpperCase() ?? '');
 

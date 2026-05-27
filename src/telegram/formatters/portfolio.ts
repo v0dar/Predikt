@@ -9,12 +9,12 @@ export function formatPortfolio(p: PortfolioResponse): string {
     `💼 ${bold('Portfolio Summary')}`,
     escMd(divider),
     line('Balance',    fmtBalance(p.total_balance)),
-    line('Exposure',   escMd(exposure)),
+    line('Exposure',   exposure),
     line('Positions',  `${p.open_positions} open`),
-    line('Today PnL',  `${pnlSign} ${escMd(fmtUsd(p.today_pnl))}`),
+    line('Today PnL',  `${pnlSign} ${fmtUsd(p.today_pnl)}`),
     line('Today trades', `${p.today_trades}`),
     '',
-    line('Mode',    escMd(p.mode?.toUpperCase() ?? '—')),
-    line('Regime',  escMd(p.regime ?? '—')),
+    line('Mode',    p.mode?.toUpperCase() ?? '—'),
+    line('Regime',  p.regime ?? '—'),
   ].join('\n');
 }

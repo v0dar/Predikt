@@ -149,6 +149,27 @@ class AdminApiClient {
       return data;
     });
   }
+
+  async getSettings(): Promise<Record<string, string>> {
+    return withRetry(async () => {
+      const { data } = await this.http.get<Record<string, string>>('/settings');
+      return data;
+    });
+  }
+
+  async recover(): Promise<ActionResponse> {
+    return withRetry(async () => {
+      const { data } = await this.http.post<ActionResponse>('/bot/recover');
+      return data;
+    });
+  }
+
+  async getDiagnose(): Promise<Record<string, unknown>> {
+    return withRetry(async () => {
+      const { data } = await this.http.get<Record<string, unknown>>('/diagnose');
+      return data;
+    });
+  }
 }
 
 export const adminApi = new AdminApiClient();
