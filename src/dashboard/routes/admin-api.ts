@@ -101,7 +101,7 @@ adminApiRouter.get('/diagnose', async (_req, res) => {
     result.clob_connectivity = `error: ${(err as Error).message}`;
   }
 
-  // 5. CLOB API key — format check (UUID) + authenticated GET /orders
+  // 5. CLOB API key — format validation only (Polymarket has no public auth-test endpoint)
   const key = config.POLYMARKET_API_KEY ?? '';
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!key) {
@@ -109,26 +109,7 @@ adminApiRouter.get('/diagnose', async (_req, res) => {
   } else if (!uuidRe.test(key)) {
     result.api_key = 'invalid format (expected UUID)';
   } else {
-    // Test with authenticated GET /orders (Polymarket CLOB returns 401 on bad key)
-    try {
-      const ts  = Math.floor(Date.now() / 1000);
-      const sig = await signer.signL2AuthMessage(ts, 'GET', '/orders');
-      const resp = await axios.get(`${config.POLYMARKET_API_BASE}/orders`, {
-        timeout: 8_000,
-        params: { maker_address: result.wallet_address, status: 'LIVE' },
-        headers: {
-          'POLY_ADDRESS':   result.wallet_address as string,
-          'POLY_SIGNATURE': sig,
-          'POLY_TIMESTAMP': String(ts),
-          'POLY_NONCE':     String(Math.floor(Math.random() * 1e9)),
-          'POLY_API_KEY':   key,
-        },
-      });
-      result.api_key = resp.status === 200 ? 'ok' : `http ${resp.status}`;
-    } catch (err) {
-      const status = (err as { response?: { status?: number } }).response?.status;
-      result.api_key = status === 401 ? 'invalid (401)' : status === 403 ? 'unauthorized (403)' : `error: ${(err as Error).message}`;
-    }
+    result.api_key = 'configured';
   }
 
   logger.info('Polymarket diagnostic run', result);

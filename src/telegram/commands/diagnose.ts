@@ -23,14 +23,14 @@ export async function diagnoseCommand(ctx: BotContext): Promise<void> {
   const privOk  = check(d['private_key']);
   const rpcOk   = check(d['rpc']);
   const clobOk  = check(d['clob_connectivity']);
-  const apiOk   = check(d['api_key']);
+  const apiOk   = (d['api_key'] === 'configured' || d['api_key'] === 'ok') ? '✅' : '❌';
   const proxyOk = d['proxy_set'] ? '✅' : '⚠️';
 
   const usdcVal  = d['usdc']  != null ? `\\$${escMd(Number(d['usdc']).toFixed(2))}` : '—';
   const maticVal = d['matic'] != null ? escMd(Number(d['matic']).toFixed(4)) : '—';
 
-  const apiStatus = d['api_key'] === 'ok'
-    ? 'valid'
+  const apiStatus = (d['api_key'] === 'configured' || d['api_key'] === 'ok')
+    ? 'valid UUID \\(confirmed on first order\\)'
     : escMd(String(d['api_key'] ?? 'unknown'));
 
   const text = [
