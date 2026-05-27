@@ -54,6 +54,16 @@ export function initRedis(): void {
   }
 }
 
+export async function pingRedis(): Promise<boolean> {
+  if (!redis || !redisAvailable) return false;
+  try {
+    const result = await redis.ping();
+    return result === 'PONG';
+  } catch {
+    return false;
+  }
+}
+
 export async function disconnectRedis(): Promise<void> {
   if (redis) {
     await redis.quit().catch(() => redis?.disconnect());

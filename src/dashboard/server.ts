@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction, Express } from 'express';
 import { join } from 'path';
 import { logger } from '../utils/logger.js';
 import { apiRouter } from './routes/api.js';
+import { adminApiRouter } from './routes/admin-api.js';
 import { pagesRouter } from './routes/pages.js';
 import { authRouter } from './routes/auth.js';
 
@@ -32,6 +33,7 @@ export function createServer(): ServerInstance {
 
   // ─── API routes ───────────────────────────────────────────────────────────
   app.use('/api', apiRouter);
+  app.use('/api/admin', adminApiRouter);
 
   // ─── Page routes ──────────────────────────────────────────────────────────
   app.use('/', pagesRouter);

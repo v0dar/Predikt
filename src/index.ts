@@ -6,6 +6,7 @@ import { startScheduler } from './scheduler/jobs.js';
 import { disconnectRedis } from './locks/index.js';
 import { createServer } from './dashboard/server.js';
 import { upsertBotStatus } from './db/queries.js';
+import { startBot, stopBot } from './telegram/index.js';
 
 async function main(): Promise<void> {
   logger.info('Predikt starting...');
@@ -35,7 +36,17 @@ async function main(): Promise<void> {
     process.exit(1);
   });
 
-  // 4. Graceful shutdown
+  // 4. Start Telegram bot (non-fatal if token not configured)
+  if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_ADMIN_SECRET) {
+    startBot().catch(err => {
+      logger.warn('Telegram bot failed to start', { error: (err as Error).message });
+    });
+    logger.info('Telegram operational bot starting');
+  } else {
+    logger.info('Telegram operational bot disabled — set TELEGRAM_BOT_TOKEN + TELEGRAM_ADMIN_SECRET to enable');
+  }
+
+  // 5. Graceful shutdown
   const handleShutdown = async (): Promise<void> => {
     logger.info('Shutdown signal received — closing gracefully');
 
@@ -49,6 +60,7 @@ async function main(): Promise<void> {
 
     await upsertBotStatus({ state: 'SHUTTING_DOWN', running: false });
 
+    await stopBot();
     await shutdown();
     await disconnectRedis();
 

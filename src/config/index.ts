@@ -34,9 +34,21 @@ const envSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
   LOCK_TTL_MS: z.coerce.number().int().positive().default(30000),
 
-  // Telegram (optional)
+  // Telegram — notification alerts (optional)
   TELEGRAM_BOT_TOKEN: z.string().default(''),
-  TELEGRAM_CHAT_ID: z.string().default(''),
+  TELEGRAM_CHAT_ID:   z.string().default(''),
+
+  // Telegram — operational bot access control
+  // Comma-separated Telegram user IDs, e.g. "123456789,987654321"
+  TELEGRAM_OWNER_IDS:  z.string().default(''),
+  TELEGRAM_ADMIN_IDS:  z.string().default(''),
+  TELEGRAM_VIEWER_IDS: z.string().default(''),
+
+  // Telegram — internal API secret (shared between bot and Express)
+  TELEGRAM_ADMIN_SECRET: z.string().default(''),
+
+  // Internal API URL (Telegram bot → Express — same server)
+  DASHBOARD_INTERNAL_URL: z.string().url().default('http://localhost:3003'),
 
   // Auth
   ADMIN_EMAIL: z.string().email().default('admin@predikt.local'),
