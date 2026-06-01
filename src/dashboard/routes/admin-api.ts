@@ -143,10 +143,13 @@ adminApiRouter.get('/mode', async (_req, res) => {
 
 adminApiRouter.get('/signals', async (_req, res) => {
   try {
+    // Only show snapshots from the most recent scan batch (last 10 minutes)
+    const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { data } = await supabase
       .from('market_snapshots')
       .select('market_id, market_question, yes_price, no_price, spread, volume_usd, liquidity_usd, regime, end_date, snapped_at')
-      .order('snapped_at', { ascending: false })
+      .gte('snapped_at', cutoff)
+      .order('liquidity_usd', { ascending: false })
       .limit(10);
 
     const signals = (data ?? []).map(s => ({

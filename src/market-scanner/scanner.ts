@@ -51,7 +51,14 @@ class MarketScanner {
       getBlacklistedMarketIds(),
     ]);
 
-    const active = markets.filter((m) => m.active && !blacklisted.has(m.id));
+    const now = Date.now();
+    const active = markets.filter((m) =>
+      m.active &&
+      !blacklisted.has(m.id) &&
+      m.endDate != null &&
+      m.endDate.getTime() > now &&       // exclude already-expired markets
+      m.liquidity > 0,                   // exclude zero-liquidity ghost markets
+    );
     logger.info(`Fetched ${markets.length} markets, ${active.length} eligible after filters`);
 
     const regime = this.detectWithVolumeSpike(active);
