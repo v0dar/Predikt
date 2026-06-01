@@ -63,7 +63,7 @@ async function runScanCycle(): Promise<void> {
     const { markets, regime } = await marketScanner.scan();
 
     if (markets.length === 0) {
-      logger.warn('No eligible markets returned from scanner');
+      logger.info('Scan complete: 0 eligible markets', { regime: 'unknown' });
       stateMachine.transition('READY');
       await upsertBotStatus({
         state: 'READY',

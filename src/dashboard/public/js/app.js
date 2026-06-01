@@ -251,7 +251,14 @@ window.pushAlert = pushAlert;
 function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function timeAgo(iso) {
+  if (!iso) return '—';
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (d < 0) {
+    const s = Math.abs(d);
+    if (s < 60) return `in ${s}s`;
+    if (s < 3600) return `in ${Math.floor(s/60)}m`;
+    return `in ${Math.floor(s/3600)}h`;
+  }
   if (d < 60) return `${d}s ago`;
   if (d < 3600) return `${Math.floor(d/60)}m ago`;
   return `${Math.floor(d/3600)}h ago`;
