@@ -143,10 +143,15 @@ adminApiRouter.get('/mode', async (_req, res) => {
 
 adminApiRouter.get('/signals', async (_req, res) => {
   try {
-    // Only show snapshots from the most recent scan batch (last 10 min),
-    // with end_date in the future and non-zero liquidity
+    // Purge all snapshots with past end_date or zero liquidity (stale ghost markets)
+    const nowIso = new Date().toISOString();
+    await supabase
+      .from('market_snapshots')
+      .delete()
+      .or(`end_date.lt.${nowIso},liquidity_usd.eq.0`);
+
+    // Only show snapshots from the most recent scan batch (last 10 min)
     const cutoff   = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const nowIso   = new Date().toISOString();
     const { data } = await supabase
       .from('market_snapshots')
       .select('market_id, market_question, yes_price, no_price, spread, volume_usd, liquidity_usd, regime, end_date, snapped_at')

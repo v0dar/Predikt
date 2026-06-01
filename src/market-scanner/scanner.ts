@@ -2,6 +2,7 @@ import { polymarket } from '../api/polymarket.js';
 import { eventBus } from '../events/event-bus.js';
 import { EVENTS } from '../events/event-types.js';
 import { logger } from '../utils/logger.js';
+import { supabase } from '../db/supabase.js';
 import { getBlacklistedMarketIds, insertMarketSnapshot } from '../db/queries.js';
 import type { NormalisedMarket, OrderBook } from '../api/polymarket.js';
 import type { MarketRegime } from '../strategy/sandbox.js';
@@ -45,6 +46,12 @@ class MarketScanner {
 
   async scan(): Promise<{ markets: NormalisedMarket[]; regime: MarketRegime }> {
     logger.info('Market scan starting');
+
+    // Purge expired/zero-liquidity snapshots from previous scans
+    const nowIso = new Date().toISOString();
+    supabase.from('market_snapshots').delete()
+      .or(`end_date.lt.${nowIso},liquidity_usd.eq.0`)
+      .then(() => {}).catch(() => {});
 
     const [markets, blacklisted] = await Promise.all([
       polymarket.getMarkets(200),
