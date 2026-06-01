@@ -25,6 +25,7 @@ import { performanceCommand }                               from './performance.
 import { alertsCommand }                                    from './alerts.js';
 import { queuesCommand }                                    from './queues.js';
 import { logsCommand }                                      from './logs.js';
+import { scanCommand }                                      from './scan.js';
 
 export function registerCommands(bot: Bot<BotContext>): void {
   // ─── Viewer commands (all authenticated roles) ──────────────────────────
@@ -52,6 +53,7 @@ export function registerCommands(bot: Bot<BotContext>): void {
   bot.command('strategies',  strategiesCommand);
 
   // ─── Admin commands ─────────────────────────────────────────────────────
+  bot.command('scan',     requireRole('ADMIN', 'OWNER'), scanCommand);
   bot.command('diagnose', requireRole('ADMIN', 'OWNER'), diagnoseCommand);
   bot.command('pause',    requireRole('ADMIN', 'OWNER'), pauseCommand);
   bot.command('resume',   requireRole('ADMIN', 'OWNER'), resumeCommand);

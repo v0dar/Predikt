@@ -39,6 +39,7 @@ export async function helpCommand(ctx: BotContext): Promise<void> {
   if (isAdmin) {
     lines.push('');
     lines.push('*🔧 Admin Controls*');
+    lines.push('/scan \\- Force an immediate market scan');
     lines.push('/diagnose \\- Test Polymarket config \\(key, RPC, CLOB\\)');
     lines.push('/pause \\- Pause all new trade executions');
     lines.push('/resume \\- Resume trading operations');
