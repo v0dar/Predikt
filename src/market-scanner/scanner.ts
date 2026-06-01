@@ -47,10 +47,10 @@ class MarketScanner {
   async scan(): Promise<{ markets: NormalisedMarket[]; regime: MarketRegime }> {
     logger.info('Market scan starting');
 
-    // Purge expired/zero-liquidity snapshots from previous scans
+    // Purge snapshots where market has already expired
     const nowIso = new Date().toISOString();
     supabase.from('market_snapshots').delete()
-      .or(`end_date.lt.${nowIso},liquidity_usd.eq.0`)
+      .lt('end_date', nowIso)
       .then(() => {}).catch(() => {});
 
     const [markets, blacklisted] = await Promise.all([
@@ -63,8 +63,7 @@ class MarketScanner {
       m.active &&
       !blacklisted.has(m.id) &&
       m.endDate != null &&
-      m.endDate.getTime() > now &&       // exclude already-expired markets
-      m.liquidity > 0,                   // exclude zero-liquidity ghost markets
+      m.endDate.getTime() > now,         // exclude already-expired markets
     );
     logger.info(`Fetched ${markets.length} markets, ${active.length} eligible after filters`);
 

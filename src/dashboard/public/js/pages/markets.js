@@ -105,8 +105,7 @@ router.register('/markets', {
       const nowIso = new Date().toISOString();
       const { data: markets } = await sb.from('markets').select('*')
         .gt('end_date', nowIso)
-        .gt('liquidity_usd', 0)
-        .order('liquidity_usd', { ascending: false })
+        .order('liquidity_usd', { ascending: false, nullsFirst: false })
         .limit(50);
       const filtered = (markets ?? []).filter(m => !q || (m.question ?? '').toLowerCase().includes(q));
 
