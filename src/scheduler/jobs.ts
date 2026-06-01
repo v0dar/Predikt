@@ -32,6 +32,19 @@ function getStrategy(name: string): BaseStrategy {
   return valueBetStrategy;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function nextScanTime(schedule: string): string {
+  // Handles */N * * * * patterns (every N minutes)
+  const match = schedule.match(/^\*\/(\d+)/);
+  const intervalMins = match ? parseInt(match[1], 10) : 5;
+  const now = Date.now();
+  const msPerMin = 60_000;
+  const elapsed = Math.floor(now / msPerMin) % intervalMins;
+  const minsUntilNext = intervalMins - elapsed;
+  return new Date(now + minsUntilNext * msPerMin).toISOString();
+}
+
 // ─── Main scan cycle ──────────────────────────────────────────────────────────
 
 async function runScanCycle(): Promise<void> {
@@ -52,6 +65,11 @@ async function runScanCycle(): Promise<void> {
     if (markets.length === 0) {
       logger.warn('No eligible markets returned from scanner');
       stateMachine.transition('READY');
+      await upsertBotStatus({
+        state: 'READY',
+        last_scan_at: new Date().toISOString(),
+        next_scan_at: nextScanTime(settings.CRON_SCHEDULE),
+      });
       return;
     }
 
@@ -130,6 +148,7 @@ async function runScanCycle(): Promise<void> {
       current_regime: regime,
       open_positions: openCount,
       last_scan_at: new Date().toISOString(),
+      next_scan_at: nextScanTime(settings.CRON_SCHEDULE),
     });
 
     // Invalidate portfolio cache after each cycle

@@ -62,8 +62,9 @@ class MarketScanner {
     const active = markets.filter((m) =>
       m.active &&
       !blacklisted.has(m.id) &&
-      m.endDate != null &&
-      m.endDate.getTime() > now,         // exclude already-expired markets
+      // Only exclude if end date is explicitly set AND already in the past
+      // (null endDate = no expiry set = treat as always active)
+      (m.endDate === null || m.endDate.getTime() > now),
     );
     logger.info(`Fetched ${markets.length} markets, ${active.length} eligible after filters`);
 
