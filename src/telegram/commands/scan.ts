@@ -3,7 +3,7 @@ import { adminApi } from '../services/admin-api.js';
 import { escMd, bold } from '../utils/index.js';
 
 export async function scanCommand(ctx: BotContext): Promise<void> {
-  await ctx.reply(`🔍 ${bold('Triggering scan\\.\\.\\.`)}`, { parse_mode: 'MarkdownV2' }).catch(() => {});
+  await ctx.reply(`🔍 Triggering scan\\.\\.\\.`, { parse_mode: 'MarkdownV2' }).catch(() => {});
 
   try {
     await adminApi.triggerScan();
