@@ -18,20 +18,34 @@ import { emergencyStopCommand, handleEmergencyStopCallback } from './emergency-s
 import { configCommand }                                    from './config.js';
 import { diagnoseCommand }                                  from './diagnose.js';
 import { recoverCommand }                                   from './recover.js';
+import { marketsCommand }                                   from './markets.js';
+import { ordersCommand }                                    from './orders.js';
+import { strategiesCommand }                                from './strategies.js';
+import { performanceCommand }                               from './performance.js';
+import { alertsCommand }                                    from './alerts.js';
+import { queuesCommand }                                    from './queues.js';
+import { logsCommand }                                      from './logs.js';
 
 export function registerCommands(bot: Bot<BotContext>): void {
   // ─── Viewer commands (all authenticated roles) ──────────────────────────
-  bot.command('start',     startCommand);
-  bot.command('help',      helpCommand);
-  bot.command('status',    statusCommand);
-  bot.command('health',    healthCommand);
-  bot.command('mode',      modeCommand);
-  bot.command('config',    configCommand);
-  bot.command('signals',   signalsCommand);
-  bot.command('positions', positionsCommand);
-  bot.command('portfolio', portfolioCommand);
-  bot.command('trades',    tradesCommand);
-  bot.command('risk',      riskCommand);
+  bot.command('start',       startCommand);
+  bot.command('help',        helpCommand);
+  bot.command('status',      statusCommand);
+  bot.command('health',      healthCommand);
+  bot.command('mode',        modeCommand);
+  bot.command('config',      configCommand);
+  bot.command('markets',     marketsCommand);
+  bot.command('signals',     signalsCommand);
+  bot.command('positions',   positionsCommand);
+  bot.command('orders',      ordersCommand);
+  bot.command('portfolio',   portfolioCommand);
+  bot.command('trades',      tradesCommand);
+  bot.command('performance', performanceCommand);
+  bot.command('risk',        riskCommand);
+  bot.command('alerts',      alertsCommand);
+  bot.command('logs',        logsCommand);
+  bot.command('queues',      queuesCommand);
+  bot.command('strategies',  strategiesCommand);
 
   // ─── Admin commands ─────────────────────────────────────────────────────
   bot.command('diagnose', requireRole('ADMIN', 'OWNER'), diagnoseCommand);

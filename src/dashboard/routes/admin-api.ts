@@ -289,6 +289,74 @@ adminApiRouter.get('/settings', async (_req, res) => {
   }
 });
 
+// ─── GET /api/admin/orders ────────────────────────────────────────────────────
+
+adminApiRouter.get('/orders', async (_req, res) => {
+  try {
+    const { data } = await supabase
+      .from('trades')
+      .select('id, market_question, side, price, size, size_filled, status, placed_at, mode, ev')
+      .in('status', ['open', 'partial'])
+      .order('placed_at', { ascending: false })
+      .limit(15);
+    res.json(data ?? []);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// ─── GET /api/admin/performance ───────────────────────────────────────────────
+
+adminApiRouter.get('/performance', async (_req, res) => {
+  try {
+    const [{ data: allTrades }, { data: snapshots }, { data: statusData }] = await Promise.all([
+      supabase.from('trades').select('status, pnl, mode, placed_at').order('placed_at', { ascending: false }).limit(200),
+      supabase.from('pnl_snapshots').select('*').order('date', { ascending: false }).limit(30),
+      supabase.from('bot_status').select('usdc_balance, mode').eq('id', 1).single(),
+    ]);
+
+    const trades   = allTrades ?? [];
+    const closed   = trades.filter(t => t.pnl != null);
+    const won      = closed.filter(t => Number(t.pnl) > 0).length;
+    const winRate  = closed.length > 0 ? (won / closed.length) * 100 : null;
+    const totalPnl = closed.reduce((s, t) => s + Number(t.pnl ?? 0), 0);
+
+    const today      = new Date().toISOString().slice(0, 10);
+    const todaySnap  = (snapshots ?? []).find(s => s.date === today);
+    const last7Pnl   = (snapshots ?? []).slice(0, 7).reduce((s, r) => s + Number(r.net_pnl ?? 0), 0);
+
+    res.json({
+      total_trades:    trades.length,
+      closed_trades:   closed.length,
+      win_rate:        winRate,
+      total_pnl:       totalPnl,
+      today_pnl:       todaySnap?.net_pnl ?? null,
+      today_trades:    todaySnap?.trades_placed ?? 0,
+      last_7d_pnl:     last7Pnl,
+      balance:         statusData?.usdc_balance ?? null,
+      mode:            statusData?.mode ?? 'demo',
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// ─── GET /api/admin/alerts ────────────────────────────────────────────────────
+
+adminApiRouter.get('/alerts', async (_req, res) => {
+  try {
+    const { data } = await supabase
+      .from('bot_logs')
+      .select('level, message, created_at')
+      .in('level', ['error', 'warn'])
+      .order('created_at', { ascending: false })
+      .limit(10);
+    res.json(data ?? []);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // ─── POST /api/admin/bot/pause ────────────────────────────────────────────────
 
 adminApiRouter.post('/bot/pause', (_req, res) => {

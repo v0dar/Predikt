@@ -170,6 +170,27 @@ class AdminApiClient {
       return data;
     });
   }
+
+  async getOrders(): Promise<Record<string, unknown>[]> {
+    return withRetry(async () => {
+      const { data } = await this.http.get<Record<string, unknown>[]>('/orders');
+      return data;
+    });
+  }
+
+  async getPerformance(): Promise<Record<string, unknown>> {
+    return withRetry(async () => {
+      const { data } = await this.http.get<Record<string, unknown>>('/performance');
+      return data;
+    });
+  }
+
+  async getAlerts(): Promise<Record<string, unknown>[]> {
+    return withRetry(async () => {
+      const { data } = await this.http.get<Record<string, unknown>[]>('/alerts');
+      return data;
+    });
+  }
 }
 
 export const adminApi = new AdminApiClient();
