@@ -35,9 +35,13 @@ export function registerCommands(bot: Bot<BotContext>): void {
   bot.command('mode',        modeCommand);
   bot.command('config',      configCommand);
   bot.command('markets',     marketsCommand);
+  bot.command('market',      marketsCommand);
   bot.command('signals',     signalsCommand);
+  bot.command('signal',      signalsCommand);
   bot.command('positions',   positionsCommand);
+  bot.command('position',    positionsCommand);
   bot.command('orders',      ordersCommand);
+  bot.command('order',       ordersCommand);
   bot.command('portfolio',   portfolioCommand);
   bot.command('trades',      tradesCommand);
   bot.command('performance', performanceCommand);
