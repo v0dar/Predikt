@@ -97,7 +97,23 @@ class MarketScanner {
     markets: NormalisedMarket[],
     regime: MarketRegime,
   ): Promise<void> {
-    // Fire-and-forget: write snapshots in parallel, do not block scan cycle
+    const now = new Date().toISOString();
+
+    // Upsert into markets table (primary registry — powers the dashboard Markets page)
+    const marketRows = markets.map((m) => ({
+      id:              m.id,
+      question:        m.question,
+      category:        m.category ?? null,
+      end_date:        m.endDate?.toISOString() ?? null,
+      volume_usd:      m.volume,
+      liquidity_usd:   m.liquidity,
+      last_scanned_at: now,
+    }));
+
+    supabase.from('markets').upsert(marketRows, { onConflict: 'id' })
+      .then(() => {}).catch((e: Error) => logger.warn('Failed to upsert markets', { error: e.message }));
+
+    // Write market_snapshots (time-series — powers backtesting)
     const writes = markets.map((m) =>
       insertMarketSnapshot({
         market_id: m.id,

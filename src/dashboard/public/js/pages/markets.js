@@ -102,8 +102,12 @@ router.register('/markets', {
       if (!grid) return;
       const sb = window._supabase;
       const q = document.getElementById('market-search')?.value?.toLowerCase() ?? '';
-      let query = sb.from('markets').select('*').order('volume_usd', { ascending: false }).limit(30);
-      const { data: markets } = await query;
+      const nowIso = new Date().toISOString();
+      const { data: markets } = await sb.from('markets').select('*')
+        .gt('end_date', nowIso)
+        .gt('liquidity_usd', 0)
+        .order('liquidity_usd', { ascending: false })
+        .limit(50);
       const filtered = (markets ?? []).filter(m => !q || (m.question ?? '').toLowerCase().includes(q));
 
       if (!filtered.length) {
@@ -137,7 +141,11 @@ router.register('/markets', {
       if (!tbody) return;
       const sb = window._supabase;
       const q = document.getElementById('market-search')?.value?.toLowerCase() ?? '';
-      const { data: markets } = await sb.from('markets').select('*').order('last_scanned_at', { ascending: false }).limit(200);
+      const nowIso = new Date().toISOString();
+      const { data: markets } = await sb.from('markets').select('*')
+        .gt('end_date', nowIso)
+        .order('last_scanned_at', { ascending: false })
+        .limit(200);
       const filtered = (markets ?? []).filter(m => !q || (m.question ?? '').toLowerCase().includes(q));
       if (!filtered.length) {
         tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No markets</td></tr>';
